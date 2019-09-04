@@ -4,6 +4,8 @@ const bodyParser = require('body-parser')
 const morgan = require('morgan')
 const mongoose = require('mongoose');
 require('dotenv').config()
+const serveStatic = require('serve-static')
+mongoose.set('useFindAndModify', false);
 morgan.token('body', function (req, res) { return JSON.stringify(req.body)
  })
 app.use(morgan(function (tokens, req, res) {
@@ -17,7 +19,7 @@ app.use(morgan(function (tokens, req, res) {
     ].join(' ')
   }))
 
-app.use(express.static('build'))
+app.use(serveStatic('build'))
 
 const url = process.env.URL || "mongodb://localhost:27017/Person"
 mongoose.connect(url, { useNewUrlParser: true })
@@ -109,7 +111,7 @@ app.delete('/api/persons/:id', (req,res)=>{
     removePerson(id).then(result => {
       response.status(204).end()
     })
-    .catch(error => next(error))
+    .catch(error => error)
     
 });
 
