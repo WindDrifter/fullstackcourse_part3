@@ -2,7 +2,8 @@ const express = require('express')
 const app = express()
 const bodyParser = require('body-parser')
 const morgan = require('morgan')
-
+const mongoose = require('mongoose');
+require('dotenv').config()
 morgan.token('body', function (req, res) { return JSON.stringify(req.body)
  })
 app.use(morgan(function (tokens, req, res) {
@@ -18,92 +19,118 @@ app.use(morgan(function (tokens, req, res) {
 
 app.use(express.static('build'))
 
+const url = process.env.URL || "mongodb://localhost:27017/Person"
+mongoose.connect(url, { useNewUrlParser: true })
+.then(result => {    console.log('connected to MongoDB')  })
+.catch((error) => {    console.log('error connecting to MongoDB:', error.message)  });
 
+const personSchema = new mongoose.Schema({
+    name: String,
+    date: Date,
+    number: Number,
+  })
+
+  personSchema.set('toJSON', {
+    transform: (document, returnedObject) => {
+      returnedObject.id = returnedObject._id.toString()
+      delete returnedObject._id
+      delete returnedObject.__v
+    }
+  })
+const Person = mongoose.model('Person', personSchema)
+
+const addPerson = (data)=>{
+    let person = new Person(data);
+    return person.save();
+}
+
+const removePerson = (personid)=>{
+    return Person.findByIdAndRemove(personid)
+}
+const updatePerson = (searchParams, data)=>{
+    return Person.updateOne(searchParams, data).exec()
+}
+const updatePersonById = (personid, data)=>{
+  return Person.findByIdAndUpdate(personid, data, { new: true }).exec()
+}
+const getPersonById = (personid)=>{
+    return Person.findById(personid).exec()
+}
+const getPerson = (search)=>{
+  return Person.findOne(search).exec()
+}
+const getAllPerson = ()=>{
+    return Person.find({})
+    
+}
 
 app.use(bodyParser.json())
-var persons = [
-    {name: "aaa", number: "1231241", id: 1},
-    {name: "bbb", number: "1230000", id: 2},
-    {name: "ccc", number: "1231111", id: 3},
-    {name: "ddd", number: "1232222", id: 4},
-    {name: "eee", number: "1233333", id: 5}]
 app.get('/', (req, res) => {
     res.send('<h1>Hello World!</h1>')
   })
 
 app.get('/api/persons' , (req,res) =>{
-    res.json(persons)
+    getAllPerson().then(results => res.json(results))
 
 });
 
 app.get('/info', (req, res)=>{
     let currenttime = new Date()
-    res.send(`<p>Phonebook has info for ${persons.length} people</p>` +
+    res.send(`<p>Phonebook has info for ${Person.count()} people</p>` +
     `<div>${currenttime}</div>`);
 
 
 })
 
 app.get('/api/persons/:id', (req,res)=>{
-    const id = parseInt(req.params.id)
-    let found = findAPersonBy(id);
-    return found? res.json(found): res.status(404).json("data not found").end()
+    const id = req.params.id
+    if(mongoose.Types.ObjectId.isValid(id)){
+      getPersonById(id).then(results =>res.json(results)).catch(error=>{res.status(500).json(error)})
+    }
+    else{
+      res.status(403).json("bad id")
+    }
+});
 
+app.put('/api/persons/:id', (req,res)=>{
+  const id = req.params.id
+  let newInfo = req.body;
+
+  if(mongoose.Types.ObjectId.isValid(id)){
+    updatePersonById(id, newInfo).then(results =>res.json(results)).catch(error=>{res.status(500).json(error)})
+  }
+  else{
+    res.status(403).json("bad id")
+  }
 });
 
 app.delete('/api/persons/:id', (req,res)=>{
-    const prevLength = persons.length;
-    const id = parseInt(req.params.id)
-    const result = persons.filter(person => person.id !== id)
-    persons = [...result]
-
-    return result.length===prevLength? res.status(404).json("data not found").end(): res.json("removed")
-    
+    const id = req.params.id
+    removePerson(id).then(result => {
+      response.status(204).end()
+    })
+    .catch(error => next(error))
     
 });
 
-function findAPersonBy(id){
-    let found = persons.find(function(person) {
-        return person.id === id
-      });
-    return found;
-}
-
-function findAPersonName(name){
-    let found = persons.find(function(person) {
-        return person.name === name
-      });
-    return found;
-}
-
-
-function getRandomInt(max) {
-    return Math.floor(Math.random() * Math.floor(max));
-  }
-  
 app.post('/api/persons', (req,res)=>{
-    let person = req.body;
-    if(findAPersonName(person.name)){
-        res.status(400).json(`${person.name} already existed`).end()
-    }
-    else if(!person.name || !person.number){
+    let newPerson = req.body;
+    getPerson({name: newPerson.name}).then((result)=>{
+      if(result){
+        res.status(400).json(`${newPerson.name} already existed`).end()
+      }
+      else if(!newPerson.name || !newPerson.number){
         res.status(400).json(`Name or Number is empty`).end()
+      }
+      addPerson(newPerson).then(result=>res.status(200).json(result)).catch(error=>{res.status(500).json(error)});
 
-    }
-    let id = -1;
-    let found = true;
-    while(found){
-        id = getRandomInt(99999999);
-        found = findAPersonBy(id);
-    }
-    person.id = id;
-    persons.concat(person);
+    }).catch(error=>{
+      console.log(error)
+      res.status(500).json(error)
     
-    res.status(200).json(person)
+    })
+ 
 });
-  app.get('/notes', (req, res) => {
-    res.json(notes)
-  })
   
   const PORT = process.env.PORT || 3001
   app.listen(PORT, () => {

@@ -1,6 +1,6 @@
 GET HTTP://localhost:3001/api/persons
 ### 
-GET HTTP://localhost:3001/api/persons/1
+GET HTTP://localhost:3001/api/persons/5d6ed2f4c968d43ca4054a7b
 ### 
 POST HTTP://localhost:3001/api/persons
 content-type: application/json
@@ -18,4 +18,13 @@ content-type: application/json
 {
     "name": "asdd",
     "number": ""
+}
+
+### 
+PUT HTTP://localhost:3001/api/persons/5d6ed2f4c968d43ca4054a7b
+content-type: application/json
+
+{
+    "name": "Anna",
+    "number": "55555555555"
 }
