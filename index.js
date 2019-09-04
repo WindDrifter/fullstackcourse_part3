@@ -8,6 +8,23 @@ const serveStatic = require('serve-static')
 mongoose.set('useFindAndModify', false);
 morgan.token('body', function (req, res) { return JSON.stringify(req.body)
  })
+
+var uniqueValidator = require('mongoose-unique-validator');
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError' && error.kind === 'ObjectId') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+  else{
+    return response.status(500).send(error)
+  }
+
+  next(error)
+}
+
+app.use(errorHandler)
 app.use(morgan(function (tokens, req, res) {
     return [
       tokens.method(req, res),
@@ -27,9 +44,9 @@ mongoose.connect(url, { useNewUrlParser: true })
 .catch((error) => {    console.log('error connecting to MongoDB:', error.message)  });
 
 const personSchema = new mongoose.Schema({
-    name: String,
+    name: { type: String, required: true, unique: true },
     date: Date,
-    number: Number,
+    number: { type: Number, required: true, unique: true },
   })
 
   personSchema.set('toJSON', {
@@ -39,6 +56,7 @@ const personSchema = new mongoose.Schema({
       delete returnedObject.__v
     }
   })
+  personSchema.plugin(uniqueValidator);
 const Person = mongoose.model('Person', personSchema)
 
 const addPerson = (data)=>{
@@ -84,38 +102,38 @@ app.get('/info', (req, res)=>{
 
 })
 
-app.get('/api/persons/:id', (req,res)=>{
+app.get('/api/persons/:id', (req,res,next)=>{
     const id = req.params.id
     if(mongoose.Types.ObjectId.isValid(id)){
-      getPersonById(id).then(results =>res.json(results)).catch(error=>{res.status(500).json(error)})
+      getPersonById(id).then(results =>res.json(results)).catch(error=>{next(error)})
     }
     else{
       res.status(403).json("bad id")
     }
 });
 
-app.put('/api/persons/:id', (req,res)=>{
+app.put('/api/persons/:id', (req,res,next)=>{
   const id = req.params.id
   let newInfo = req.body;
 
   if(mongoose.Types.ObjectId.isValid(id)){
-    updatePersonById(id, newInfo).then(results =>res.json(results)).catch(error=>{res.status(500).json(error)})
+    updatePersonById(id, newInfo).then(results =>res.json(results)).catch(error=>{next(error)})
   }
   else{
     res.status(403).json("bad id")
   }
 });
 
-app.delete('/api/persons/:id', (req,res)=>{
+app.delete('/api/persons/:id', (req,res,next)=>{
     const id = req.params.id
     removePerson(id).then(result => {
       response.status(204).end()
     })
-    .catch(error => error)
+    .catch(error => next(error))
     
 });
 
-app.post('/api/persons', (req,res)=>{
+app.post('/api/persons', (req,res,next)=>{
     let newPerson = req.body;
     getPerson({name: newPerson.name}).then((result)=>{
       if(result){
@@ -128,8 +146,7 @@ app.post('/api/persons', (req,res)=>{
 
     }).catch(error=>{
       console.log(error)
-      res.status(500).json(error)
-    
+      next(error)
     })
  
 });
