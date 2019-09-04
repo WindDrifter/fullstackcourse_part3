@@ -37,8 +37,10 @@ app.use(morgan(function (tokens, req, res) {
   }))
 
 app.use(serveStatic('build'))
-
-const url = process.env.URL || "mongodb://localhost:27017/Person"
+const password = process.env.password
+const user = process.env.user
+const mongoURL = process.env.mongoURL
+const url = `mongodb://${user}:${password}@${mongoURL}` || "mongodb://localhost:27017/Person"
 mongoose.connect(url, { useNewUrlParser: true })
 .then(result => {    console.log('connected to MongoDB')  })
 .catch((error) => {    console.log('error connecting to MongoDB:', error.message)  });
